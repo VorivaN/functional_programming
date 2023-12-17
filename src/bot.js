@@ -1,161 +1,96 @@
-  class Bot {
-    constructor(chips, turn){
-        this.chips = chips;
-        this.turn = turn;
+function getBestMove(gameState) {
+    let gameStateDeepCopy = JSON.parse(JSON.stringify(gameState))
+    let minMax = runMiniMax(gameStateDeepCopy, gameStateDeepCopy.turn, 0, -500, 500);
+    return minMax;
+}
+
+function runMiniMax(gameStateCopy, turn, recursiveLevel, alpha, beta) {
+    if (recursiveLevel >= 7)
+        return { val: this.getHeuristicEvaluation(gameStateCopy), chip: null, move: null };
+
+    let bestMove = null;
+    let bestChip = null;
+    let MinMax = turn == Type.WOLF ? 0 : 255;
+
+    let chips = gameStateCopy.chips.filter(c => c.type == turn);
+    for (let chip of chips) {
+        let curPos = { i: chip.i, j: chip.j };
+        for(let move of chipPossibleMoves(gameStateCopy.chips, gameStateCopy.fieldSize, chip)) {
+            chip.i = move.i;
+            chip.j = move.j;
+            let test = this.runMiniMax(gameStateCopy, nextTurn(turn), recursiveLevel + 1, alpha, beta);
+            chip.i = curPos.i;
+            chip.j = curPos.j;
+
+            if(turn === Type.SHEEP) {
+                if (test.val <= MinMax || bestMove == null) {
+                    MinMax = test.val;
+                    bestMove = move;
+                    bestChip = chip;
+                }
+                beta = Math.min(beta, test.val);
+            } else {
+                if (test.val > MinMax || bestMove == null) {
+                    MinMax = test.val;
+                    bestMove = move;
+                    bestChip = chip;
+                }
+                alpha = Math.max(alpha, test.val);
+            }
+
+            if (beta < alpha)
+                    break;
+        }
+        if (beta < alpha)
+            break;
+    }
+
+    if (!bestMove) {
+        return { val: this.getHeuristicEvaluation(gameStateCopy), chip: bestChip, move: bestMove };
+    }
+
+    return { val: MinMax, chip: bestChip, move: bestMove };
+}
+
+function getHeuristicEvaluation(gameStateCopy) {
+    let sheep = gameStateCopy.chips.find(c => c.type === Type.SHEEP);
+    if (sheep.i == 0)
+        return 0;
+
+    let map = create2DArray(gameStateCopy.fieldSize, gameStateCopy.fieldSize, 100);
+    map[sheep.i][sheep.j] = 0;
+
+    let searchWay = [];
+    searchWay.push({ i: sheep.i, j: sheep.j });
+
+    while (searchWay.length > 0)
+    {
+        let position = searchWay.pop();
+        position.type = Type.SHEEP;
+        for (let move of chipPossibleMoves(gameStateCopy.chips, gameStateCopy.fieldSize, position)) {
+            if (map[move.i][move.j] === 100) {
+                map[move.i][move.j] = map[position.i][position.j] + 1;
+                searchWay.push(move);
+            }
+        }
     }
     
-    doTurn(){ 
-        this.runMiniMax(this.turn, 0, -500, 500);
+    let min = 255;
+    for (let i = 0; i < gameStateCopy.fieldSize / 2; i++)
+        if (map[0][i * 2] != 100 && map[0][i * 2] < min) 
+            min = map[0][i * 2];
+
+    return min - 1;
+}
+
+
+function create2DArray(n, m, val) {
+    let arr = [];
+    for (let i = 0; i < n; ++i) {
+        let arr1 = [];
+        for (let j = 0; j < m; ++j)
+            arr1.push(val);
+        arr.push(arr1);
     }
-    runMiniMax(turn, recursiveLevel, alpha, beta) { //определяем наилучший ход
-
-        let test = null;
-
-        if (recursiveLevel >= 7) //если глубина > 7 выбираем наилучший ход 
-        {
-            return this.getHeuristicEvaluation();
-        }
-
-        let bestMove = null;
-        let bestChip = null;
-        let MinMax = turn == 'wolf' ? 0 : 255; // ?
-
-        if(turn == 'sheep') { 
-            let sheep = this.chips.find(c => !c.isWolf);
-
-            let curPos = { i: sheep.i, j: sheep.j };//запоминаем начальную координату
-            let moves = [
-                {i: sheep.i + 1, j: sheep.j + 1},
-                {i: sheep.i + 1, j: sheep.j - 1},
-                {i: sheep.i - 1, j: sheep.j + 1},
-                {i: sheep.i - 1, j: sheep.j - 1}
-            ];
-
-            for(let move of moves) {
-                if(sheep.possibleTurn(this.chips, move.i, move.j)){//проверяем возможен ли ход
-                    
-                    //сделали ход овцой
-                    sheep.i = move.i;
-                    sheep.j = move.j;
-
-                    //проверили насколько этот ход хорош
-                    test = this.runMiniMax('wolf', recursiveLevel + 1, alpha, beta);
-
-                    //сходили обратно
-                    sheep.i = curPos.i;
-                    sheep.j = curPos.j;
-
-                    if(test <= MinMax || bestMove == null) {//если тестовый ход вернул значение минимакса меньше, обнавляем данные 
-                        MinMax = test;
-                        bestMove = move;
-                        bestChip = sheep;
-                    }
-                    
-                    beta = Math.min(beta, test);
-                    if (beta < alpha)
-                        break;
-                }
-            }
-        } else {
-            let wolfs = this.chips.filter(c => c.isWolf);
-
-            for(let wolf of wolfs) {
-                let curPos = { i: wolf.i, j: wolf.j };//запоминаем координату волка
-                let moves = [
-                    {i: wolf.i + 1, j: wolf.j + 1},
-                    {i: wolf.i + 1, j: wolf.j - 1}
-                ];
-                
-                for(let move of moves) {
-                    if(wolf.possibleTurn(this.chips, move.i, move.j)){
-                        //сделали ход волком
-                        wolf.i = move.i;
-                        wolf.j = move.j;
-
-                        //проверили насколько этот ход хорош
-                        test = this.runMiniMax('sheep', recursiveLevel + 1, alpha, beta);
-
-                        //сходили обратно
-                        wolf.i = curPos.i;
-                        wolf.j = curPos.j;
-
-                        if(test > MinMax || bestMove == null){
-                            MinMax = test;
-                            bestMove = move;
-                            bestChip = wolf;
-                        }
-
-                        alpha = Math.max(alpha, test);
-                        if (beta < alpha)
-                            break;
-                    }
-                }
-                if (beta < alpha)
-                    break;
-            }
-        }
-
-        if(bestMove == null) {
-            return this.getHeuristicEvaluation();
-        }
-
-        if (recursiveLevel == 0 && bestMove != null && bestChip != null)
-        {
-           bestChip.i = bestMove.i;
-           bestChip.j = bestMove.j;
-        }
-        
-        return MinMax;
-    }
-
-    getHeuristicEvaluation() {
-        let sheep = this.chips.find(c => !c.isWolf);
-        if (sheep.i == 0)
-            return 0;
-
-        let searchWay = []; //создаем массив ходов?
-        let map = []; // создаем массив поля и заполняем его
-        for(let i = 0; i < 8; ++i)
-            map.push([100,100,100,100,100,100,100,100]);
-        map[sheep.i][sheep.j] = 0;
-
-        searchWay.push({i: sheep.i, j: sheep.j}); //запоминаем координату овцы
-
-        while (searchWay.length > 0)//пока есть возможные ходы
-        {
-            let position = searchWay.pop(); //берем позицию 
-            let moves = [
-                {i: position.i + 1, j: position.j + 1},
-                {i: position.i + 1, j: position.j - 1},
-                {i: position.i - 1, j: position.j + 1},
-                {i: position.i - 1, j: position.j - 1}
-            ];
-
-            for(let move of moves) { //смотрим возможные ходы
-                if (this.cellEmpty(move.i, move.j) && map[move.i][move.j] == 100) {//клетка пуста и значение в ней 100
-                    map[move.i][move.j] = map[position.i][position.j] + 1;//? + 1
-                    searchWay.push(move);//добавляем в массив ходов 
-                }
-            }
-        }
-
-        let min = 255;
-        for (let i = 0; i < 4; i++)
-            if (map[0][i * 2] != 100 && map[0][i * 2] < min)//проверяем клетки сверху 
-                min = map[0][i * 2];
-
-        return min - 1;
-    }
-
-    cellEmpty(i, j) {
-        if(i < 0 || j < 0 || j > 7 || i > 7) 
-            return false;
-
-        for(let f of this.chips){ //проверяем стоит ли на клетке фишка
-            if(f.i == i && f.j == j){
-                return false;
-            }
-        } 
-        return true; //тогда ходим
-    }
+    return arr;
 }
